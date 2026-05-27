@@ -1,0 +1,858 @@
+{% extends "layout.html" %}
+
+{% block title %}Gestion des Livraisons - MKM Shop{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-3 py-3 py-md-4">
+    <!-- En-tête optimisé mobile -->
+    <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center mb-3 mb-md-4">
+        <div class="mb-3 mb-md-0">
+            <h1 class="h4 mb-1 text-dark fw-bold">
+                <i class="fas fa-warehouse text-primary me-2"></i>Gestion des Livraisons
+            </h1>
+            <p class="text-muted small mb-0">Préparation des commandes au dépôt</p>
+        </div>
+        <div class="d-flex flex-wrap gap-2">
+            <a href="{{ url_for('routes.livraisons_client') }}" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-eye me-1"></i> <span class="d-none d-md-inline">Vue Client</span>
+            </a>
+        </div>
+    </div>
+
+    <!-- Messages flash optimisés mobile -->
+    {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+            {% for category, message in messages %}
+                <div class="alert alert-{{ category }} alert-dismissible fade show d-flex align-items-center mb-3" role="alert">
+                    {% if category == 'success' %}
+                        <i class="fas fa-check-circle me-2"></i>
+                    {% elif category == 'danger' %}
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                    {% elif category == 'warning' %}
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                    {% else %}
+                        <i class="fas fa-info-circle me-2"></i>
+                    {% endif %}
+                    <div class="flex-grow-1 small">{{ message }}</div>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+                </div>
+            {% endfor %}
+        {% endif %}
+    {% endwith %}
+
+    <!-- Statistiques simplifiées pour mobile -->
+    <div class="row g-2 mb-3 mb-md-4">
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100 border-start border-warning border-4">
+                <div class="card-body p-2 p-md-3">
+                    <div class="h4 fw-bold text-warning mb-1">{{ stats.en_attente }}</div>
+                    <p class="small text-muted mb-0">À livrer</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100 border-start border-success border-4">
+                <div class="card-body p-2 p-md-3">
+                    <div class="h4 fw-bold text-success mb-1">{{ stats.livree }}</div>
+                    <p class="small text-muted mb-0">Livrées</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100 border-start border-danger border-4">
+                <div class="card-body p-2 p-md-3">
+                    <div class="h4 fw-bold text-danger mb-1">{{ stats.annulee }}</div>
+                    <p class="small text-muted mb-0">Annulées</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-md-3">
+            <div class="card text-center h-100 border-start border-secondary border-4">
+                <div class="card-body p-2 p-md-3">
+                    <div class="h4 fw-bold text-secondary mb-1">{{ stats.tous }}</div>
+                    <p class="small text-muted mb-0">Total</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtres et recherche améliorés -->
+    <div class="card mb-3 mb-md-4 shadow-sm">
+        <div class="card-body p-3">
+            <form method="GET" action="{{ url_for('routes.gestion_livraisons') }}" id="filterForm">
+                <div class="row g-3">
+                    <!-- Filtre par statut -->
+                    <div class="col-md-6">
+                        <label class="form-label small fw-semibold">Filtrer par statut</label>
+                        <div class="d-flex flex-wrap gap-2">
+                            <a href="?statut=en_attente{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                               class="btn btn-sm {% if statut_filter == 'en_attente' %}btn-warning{% else %}btn-outline-warning{% endif %}">
+                                <i class="fas fa-clock me-1"></i> À livrer
+                                <span class="badge bg-warning text-dark ms-1">{{ stats.en_attente }}</span>
+                            </a>
+                            <a href="?statut=livree{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                               class="btn btn-sm {% if statut_filter == 'livree' %}btn-success{% else %}btn-outline-success{% endif %}">
+                                <i class="fas fa-check me-1"></i> Livrées
+                                <span class="badge bg-success ms-1">{{ stats.livree }}</span>
+                            </a>
+                            <a href="?statut=tous{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                               class="btn btn-sm {% if statut_filter == 'tous' %}btn-secondary{% else %}btn-outline-secondary{% endif %}">
+                                <i class="fas fa-list me-1"></i> Toutes
+                                <span class="badge bg-secondary ms-1">{{ stats.tous }}</span>
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <!-- Recherche client -->
+                    <div class="col-md-6">
+                        <label for="client" class="form-label small fw-semibold">Rechercher par client</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="fas fa-user"></i></span>
+                            <input type="text" class="form-control" id="client" name="client" 
+                                   value="{{ client }}" placeholder="Nom du client...">
+                            <button class="btn btn-primary" type="submit">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Filtres par date -->
+                    <div class="col-md-6">
+                        <label for="start_date" class="form-label small fw-semibold">Date de début</label>
+                        <input type="date" class="form-control form-control-sm" id="start_date" 
+                               name="start_date" value="{{ start_date }}">
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="end_date" class="form-label small fw-semibold">Date de fin</label>
+                        <div class="input-group input-group-sm">
+                            <input type="date" class="form-control" id="end_date" 
+                                   name="end_date" value="{{ end_date }}">
+                            <button class="btn btn-outline-secondary" type="button" id="resetDates">
+                                <i class="fas fa-times"></i>
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Boutons d'action -->
+                    <div class="col-12">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="small text-muted">
+                                {% if start_date or end_date or client %}
+                                Filtres actifs : 
+                                {% if start_date %}Du {{ start_date }}{% endif %}
+                                {% if end_date %} au {{ end_date }}{% endif %}
+                                {% if client %} • Client: {{ client }}{% endif %}
+                                {% endif %}
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="resetFilters()">
+                                    <i class="fas fa-times me-1"></i> Réinitialiser
+                                </button>
+                                <button type="submit" class="btn btn-sm btn-primary">
+                                    <i class="fas fa-filter me-1"></i> Appliquer
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Liste des livraisons adaptée mobile -->
+    <div class="card shadow-sm">
+        <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
+            <div>
+                <h5 class="card-title mb-0 small">
+                    <i class="fas fa-list-check me-1"></i> Commandes
+                    <span class="badge bg-primary ms-1">{{ livraisons|length }}</span>
+                </h5>
+                <small class="text-muted d-none d-md-inline">
+                    Triées par date (plus récent en premier)
+                </small>
+            </div>
+            <div class="d-flex align-items-center gap-2">
+                <small class="text-muted d-none d-md-block">
+                    <i class="fas fa-sort-down me-1"></i> Date ↓
+                </small>
+                <button class="btn btn-sm btn-link p-0 text-muted" type="button" data-bs-toggle="collapse" data-bs-target="#infoHelp" aria-expanded="false">
+                    <i class="fas fa-info-circle"></i>
+                </button>
+            </div>
+        </div>
+        
+        <div class="card-body p-0">
+            {% if livraisons %}
+            <div class="table-responsive">
+                <table class="table table-hover table-sm align-middle mb-0 d-none d-md-table">
+                    <!-- Tableau desktop (caché sur mobile) -->
+                    <thead class="table-light">
+                        <tr>
+                            <th width="80" class="text-center">
+                                <a href="?statut={{ statut_filter }}&sort=id{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                                   class="text-decoration-none {% if sort_by == 'id' %}text-primary fw-bold{% endif %}">
+                                    Facture <i class="fas fa-sort"></i>
+                                </a>
+                            </th>
+                            <th>
+                                <a href="?statut={{ statut_filter }}&sort=client{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                                   class="text-decoration-none {% if sort_by == 'client' %}text-primary fw-bold{% endif %}">
+                                    Client <i class="fas fa-sort"></i>
+                                </a>
+                            </th>
+                            <th width="120" class="text-center">
+                                <a href="?statut={{ statut_filter }}&sort=date{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                                   class="text-decoration-none {% if sort_by == 'date' %}text-primary fw-bold{% endif %}">
+                                    Date <i class="fas fa-sort-down"></i>
+                                </a>
+                            </th>
+                            <th width="80" class="text-center">Articles</th>
+                            <th width="100" class="text-center">
+                                <a href="?statut={{ statut_filter }}&sort=total{% if start_date %}&start_date={{ start_date }}{% endif %}{% if end_date %}&end_date={{ end_date }}{% endif %}{% if client %}&client={{ client }}{% endif %}" 
+                                   class="text-decoration-none {% if sort_by == 'total' %}text-primary fw-bold{% endif %}">
+                                    Total <i class="fas fa-sort"></i>
+                                </a>
+                            </th>
+                            <th width="120" class="text-center">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for livraison in livraisons %}
+                        <tr class="{% if livraison.statut == 'en_attente' %}table-warning{% endif %} livraison-row" 
+                            data-livraison-id="{{ livraison.id }}"
+                            style="cursor: pointer;">
+                            <td class="text-center">
+                                <div class="fw-bold text-primary">#{{ livraison.facture.id }}</div>
+                                <small class="text-muted">{{ livraison.date_commande.strftime('%d/%m') }}</small>
+                            </td>
+                            <td>
+                                <div class="fw-semibold">{{ livraison.facture.nom_client }}</div>
+                                <div class="small text-muted">
+                                    <i class="fas fa-store me-1"></i> {{ livraison.lieu_retrait|truncate(15) }}
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <div class="fw-semibold">{{ livraison.date_commande.strftime('%d/%m') }}</div>
+                                <small class="text-muted">{{ livraison.date_commande.strftime('%H:%M') }}</small>
+                                {% if livraison.date_commande.date() == today %}
+                                <span class="badge bg-info ms-1">Aujourd'hui</span>
+                                {% elif livraison.date_commande.date() == yesterday %}
+                                <span class="badge bg-secondary ms-1">Hier</span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-primary rounded-pill">{{ livraison.facture.ventes|length }}</span>
+                            </td>
+                            <td class="text-center">
+                                <div class="fw-bold text-success">
+                                    {{ "%.2f"|format(livraison.facture.montant_total) }} $
+                                </div>
+                            </td>
+                            <td class="text-center">
+                                <div class="d-flex justify-content-center gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-primary view-details-btn"
+                                            data-livraison-id="{{ livraison.id }}"
+                                            title="Voir détails">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    {% if livraison.statut == 'en_attente' %}
+                                    <button type="button" class="btn btn-sm btn-success livrer-btn"
+                                            data-livraison-id="{{ livraison.id }}"
+                                            title="Livrer cette commande">
+                                        <i class="fas fa-truck"></i>
+                                    </button>
+                                    {% endif %}
+                                    
+                                    <button type="button" class="btn btn-sm btn-outline-secondary"
+                                            onclick="event.stopPropagation(); window.open('{{ url_for('routes.details_facture', id=livraison.facture.id) }}', '_blank')"
+                                            title="Voir facture">
+                                        <i class="fas fa-file-invoice"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+
+                <!-- Liste mobile (cartes) -->
+                <div class="d-md-none">
+                    {% for livraison in livraisons %}
+                    <div class="card mb-2 mx-1 border-start {% if livraison.statut == 'en_attente' %}border-warning border-3{% else %}border-light{% endif %} livraison-card"
+                         data-livraison-id="{{ livraison.id }}">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="card-title mb-1 fw-bold text-primary">
+                                        #{{ livraison.facture.id }} • {{ livraison.facture.nom_client|truncate(20) }}
+                                    </h6>
+                                    <div class="d-flex align-items-center gap-2">
+                                        <small class="text-muted">
+                                            <i class="fas fa-calendar me-1"></i> {{ livraison.date_commande.strftime('%d/%m %H:%M') }}
+                                        </small>
+                                        {% if livraison.date_commande.date() == today %}
+                                        <span class="badge bg-info badge-sm">Aujourd'hui</span>
+                                        {% elif livraison.date_commande.date() == yesterday %}
+                                        <span class="badge bg-secondary badge-sm">Hier</span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <span class="badge {% if livraison.statut == 'en_attente' %}bg-warning text-dark{% else %}bg-success{% endif %}">
+                                    {% if livraison.statut == 'en_attente' %}
+                                    <i class="fas fa-clock me-1"></i> À livrer
+                                    {% else %}
+                                    <i class="fas fa-check me-1"></i> Livrée
+                                    {% endif %}
+                                </span>
+                            </div>
+                            
+                            <div class="row g-2 mb-2">
+                                <div class="col-4">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <i class="fas fa-box text-muted mb-1"></i>
+                                        <div class="small text-muted">Articles</div>
+                                        <div class="fw-bold">{{ livraison.facture.ventes|length }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <i class="fas fa-store text-muted mb-1"></i>
+                                        <div class="small text-muted">Lieu</div>
+                                        <div class="fw-bold small">{{ livraison.lieu_retrait|truncate(10) }}</div>
+                                    </div>
+                                </div>
+                                <div class="col-4">
+                                    <div class="d-flex flex-column align-items-center">
+                                        <i class="fas fa-dollar-sign text-muted mb-1"></i>
+                                        <div class="small text-muted">Total</div>
+                                        <div class="fw-bold text-success small">{{ "%.2f"|format(livraison.facture.montant_total) }} $</div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <div class="d-flex gap-1">
+                                    <button type="button" class="btn btn-sm btn-outline-primary view-details-btn"
+                                            data-livraison-id="{{ livraison.id }}">
+                                        <i class="fas fa-eye"></i>
+                                    </button>
+                                    
+                                    {% if livraison.statut == 'en_attente' %}
+                                    <button type="button" class="btn btn-sm btn-success livrer-btn"
+                                            data-livraison-id="{{ livraison.id }}">
+                                        <i class="fas fa-truck"></i>
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                
+                                <button type="button" class="btn btn-sm btn-outline-secondary"
+                                        onclick="window.open('{{ url_for('routes.details_facture', id=livraison.facture.id) }}', '_blank')">
+                                    <i class="fas fa-file-invoice"></i> Facture
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+            
+            <!-- Pagination et infos -->
+            <div class="card-footer bg-light py-2">
+                <div class="d-flex flex-column flex-md-row justify-content-between align-items-center">
+                    <small class="text-muted mb-2 mb-md-0">
+                        {{ livraisons|length }} commande{{ 's' if livraisons|length > 1 else '' }}
+                        {% if start_date or end_date or client %}
+                        (filtrées)
+                        {% endif %}
+                    </small>
+                    
+                    <div class="d-flex align-items-center gap-3">
+                        <div class="small text-muted">
+                            <i class="fas fa-sort-down me-1"></i> Tri: 
+                            {% if sort_by == 'date' %}Date{% elif sort_by == 'client' %}Client{% elif sort_by == 'total' %}Total{% else %}ID{% endif %}
+                        </div>
+                        
+                        <div class="small text-muted">
+                            <i class="fas fa-sync-alt me-1"></i> Auto-refresh 60s
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            {% else %}
+            <!-- État vide -->
+            <div class="text-center py-5">
+                <i class="fas fa-clipboard-check fa-3x text-muted mb-3"></i>
+                <h5 class="text-muted mb-2">Aucune commande trouvée</h5>
+                <p class="text-muted small mb-3">
+                    {% if start_date or end_date or client %}
+                    Aucune commande ne correspond à vos critères de recherche.
+                    {% elif statut_filter == 'en_attente' %}
+                    Toutes les commandes sont livrées !
+                    {% else %}
+                    Aucune commande dans cette catégorie.
+                    {% endif %}
+                </p>
+                <div class="d-flex justify-content-center gap-2">
+                    <a href="?statut=en_attente" class="btn btn-sm btn-primary">
+                        <i class="fas fa-redo me-1"></i> Voir à livrer
+                    </a>
+                    <button onclick="resetFilters()" class="btn btn-sm btn-outline-secondary">
+                        <i class="fas fa-times me-1"></i> Réinitialiser filtres
+                    </button>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour afficher les détails de la livraison -->
+<div class="modal fade" id="detailsModal" tabindex="-1" aria-labelledby="detailsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable modal-fullscreen-sm-down">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white py-3">
+                <h5 class="modal-title" id="detailsModalLabel">
+                    <i class="fas fa-info-circle me-2"></i> Détails de la commande
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div id="detailsContent">
+                    <!-- Contenu chargé dynamiquement -->
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Chargement...</span>
+                        </div>
+                        <p class="mt-3">Chargement des détails...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer p-3">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    <i class="fas fa-times me-1"></i> Fermer
+                </button>
+                <button type="button" class="btn btn-primary d-none" id="printFactureBtn">
+                    <i class="fas fa-print me-1"></i> Imprimer
+                </button>
+                <button type="button" class="btn btn-success d-none" id="livrerFromModalBtn">
+                    <i class="fas fa-truck me-1"></i> Livrer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal pour confirmer la livraison -->
+<div class="modal fade" id="livrerModal" tabindex="-1" aria-labelledby="livrerModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white py-3">
+                <h5 class="modal-title h6" id="livrerModalLabel">
+                    <i class="fas fa-truck me-2"></i> Confirmer la livraison
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3">
+                <p class="mb-3">Vous êtes sur le point de confirmer cette livraison.</p>
+                
+                <div class="alert alert-warning small mb-3">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    <strong>Attention :</strong> Les produits seront déduits du stock du dépôt.
+                </div>
+                
+                <div class="mb-3">
+                    <label for="frais_livraison_input" class="form-label small">Frais de livraison supplémentaires ($)</label>
+                    <input type="number" class="form-control form-control-sm" id="frais_livraison_input" step="0.01" min="0" value="0">
+                </div>
+                
+                <div class="mb-3">
+                    <label for="notes_livraison_input" class="form-label small">Notes (optionnel)</label>
+                    <textarea class="form-control form-control-sm" id="notes_livraison_input" rows="2" placeholder="Notes sur la livraison..."></textarea>
+                </div>
+            </div>
+            <div class="modal-footer p-3">
+                <button type="button" class="btn btn-sm btn-secondary" data-bs-dismiss="modal">Annuler</button>
+                <button type="button" class="btn btn-sm btn-success" id="confirmLivrerBtn">
+                    <i class="fas fa-check me-1"></i> Confirmer
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+let currentLivraisonId = null;
+let today = new Date().toISOString().split('T')[0];
+
+// Charger les détails d'une livraison dans la modale
+async function loadLivraisonDetails(livraisonId) {
+    currentLivraisonId = livraisonId;
+    
+    try {
+        // Afficher le spinner
+        document.getElementById('detailsContent').innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Chargement...</span>
+                </div>
+                <p class="mt-3">Chargement des détails...</p>
+            </div>
+        `;
+        
+        // Charger la modale
+        const detailsModal = new bootstrap.Modal(document.getElementById('detailsModal'));
+        detailsModal.show();
+        
+        // Récupérer les détails via API
+        const response = await fetch(`/livraison/${livraisonId}/details-ajax`);
+        const htmlContent = await response.text();
+        
+        // Insérer le contenu
+        document.getElementById('detailsContent').innerHTML = htmlContent;
+        
+        // Afficher/masquer les boutons selon le statut
+        const statut = document.querySelector('#detailsContent .livraison-statut')?.textContent?.toLowerCase();
+        const livrerBtn = document.getElementById('livrerFromModalBtn');
+        const printBtn = document.getElementById('printFactureBtn');
+        
+        if (statut && statut.includes('attente')) {
+            livrerBtn.classList.remove('d-none');
+            livrerBtn.onclick = () => {
+                detailsModal.hide();
+                setTimeout(() => {
+                    livrerCommande(livraisonId);
+                }, 300);
+            };
+        } else {
+            livrerBtn.classList.add('d-none');
+        }
+        
+        // Bouton imprimer
+        const factureId = document.querySelector('#detailsContent [data-facture-id]')?.getAttribute('data-facture-id');
+        if (factureId) {
+            printBtn.classList.remove('d-none');
+            printBtn.onclick = () => {
+                window.open(`/factures/${factureId}/imprimer`, '_blank');
+            };
+        } else {
+            printBtn.classList.add('d-none');
+        }
+        
+    } catch (error) {
+        console.error('Erreur:', error);
+        document.getElementById('detailsContent').innerHTML = `
+            <div class="alert alert-danger m-3">
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                Erreur lors du chargement des détails.
+            </div>
+        `;
+    }
+}
+
+// Fonction pour livrer une commande
+function livrerCommande(livraisonId) {
+    currentLivraisonId = livraisonId;
+    const modal = new bootstrap.Modal(document.getElementById('livrerModal'));
+    modal.show();
+}
+
+// Confirmer la livraison
+document.getElementById('confirmLivrerBtn').addEventListener('click', async function() {
+    if (!currentLivraisonId) return;
+    
+    const frais = document.getElementById('frais_livraison_input').value || 0;
+    const notes = document.getElementById('notes_livraison_input').value || '';
+    const btn = this;
+    const originalText = btn.innerHTML;
+    
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Traitement...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/livraisons/statut/${currentLivraisonId}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                statut: 'livree',
+                notes: notes + (frais > 0 ? ` | Frais: ${frais} $` : '')
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            bootstrap.Modal.getInstance(document.getElementById('livrerModal')).hide();
+            
+            // Afficher notification
+            showNotification('Livraison confirmée! Stock déduit du dépôt.', 'success');
+            
+            // Recharger la page après 1 seconde
+            setTimeout(() => {
+                window.location.reload();
+            }, 1000);
+        } else {
+            showNotification(result.message, 'error');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Erreur:', error);
+        showNotification('Erreur de connexion au serveur', 'error');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+});
+
+// Événements pour les boutons
+document.addEventListener('DOMContentLoaded', function() {
+    // Boutons "Voir détails"
+    document.querySelectorAll('.view-details-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const livraisonId = this.getAttribute('data-livraison-id');
+            loadLivraisonDetails(livraisonId);
+        });
+    });
+    
+    // Boutons "Livrer"
+    document.querySelectorAll('.livrer-btn').forEach(btn => {
+        btn.addEventListener('click', function(e) {
+            e.stopPropagation();
+            const livraisonId = this.getAttribute('data-livraison-id');
+            livrerCommande(livraisonId);
+        });
+    });
+    
+    // Clic sur les lignes/cartes
+    document.querySelectorAll('.livraison-row, .livraison-card').forEach(element => {
+        element.addEventListener('click', function() {
+            const livraisonId = this.getAttribute('data-livraison-id');
+            loadLivraisonDetails(livraisonId);
+        });
+    });
+    
+    // Réinitialiser les dates
+    document.getElementById('resetDates').addEventListener('click', function() {
+        document.getElementById('start_date').value = '';
+        document.getElementById('end_date').value = '';
+    });
+    
+    // Auto-sélectionner la date d'aujourd'hui pour end_date si vide
+    const endDateInput = document.getElementById('end_date');
+    if (endDateInput && !endDateInput.value) {
+        endDateInput.value = today;
+    }
+
+    // Renforcer l'affichage responsif sur mobile
+    document.querySelectorAll('.livraison-card .btn').forEach(button => {
+        button.classList.add('w-100');
+    });
+    
+    // Auto-refresh pour les commandes en attente
+    if ('{{ statut_filter }}' === 'en_attente' || '{{ statut_filter }}' === 'tous') {
+        setTimeout(() => {
+            showNotification('Mise à jour automatique...', 'info');
+            setTimeout(() => window.location.reload(), 1000);
+        }, 60000); // 60 secondes
+    }
+    
+    // Gestes tactiles pour mobile
+    let touchStartX = 0;
+    let touchStartY = 0;
+    
+    document.querySelectorAll('.livraison-card').forEach(card => {
+        card.addEventListener('touchstart', function(e) {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        }, { passive: true });
+        
+        card.addEventListener('touchend', function(e) {
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            
+            // Vérifier que c'est un tap (pas un swipe)
+            const diffX = Math.abs(touchEndX - touchStartX);
+            const diffY = Math.abs(touchEndY - touchStartY);
+            
+            if (diffX < 10 && diffY < 10) {
+                // C'est un tap, ouvrir les détails
+                const livraisonId = this.getAttribute('data-livraison-id');
+                loadLivraisonDetails(livraisonId);
+            }
+        }, { passive: true });
+    });
+});
+
+// Fonction pour réinitialiser les filtres
+function resetFilters() {
+    window.location.href = "{{ url_for('routes.gestion_livraisons') }}";
+}
+
+// Fonction de notification
+function showNotification(message, type = 'info') {
+    const notification = document.createElement('div');
+    notification.className = `position-fixed bottom-0 end-0 m-3 alert alert-${type} alert-dismissible fade show`;
+    notification.style.zIndex = '1060';
+    notification.innerHTML = `
+        <i class="fas ${type === 'success' ? 'fa-check-circle' : 'fa-info-circle'} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-suppression après 3 secondes
+    setTimeout(() => {
+        if (notification.parentNode) {
+            const bsAlert = new bootstrap.Alert(notification);
+            bsAlert.close();
+        }
+    }, 3000);
+}
+</script>
+
+<style>
+/* Styles optimisés mobile */
+.card {
+    border-radius: 8px;
+}
+
+.table-responsive {
+    font-size: 0.9rem;
+}
+
+.badge {
+    font-size: 0.75em;
+    padding: 0.25em 0.6em;
+}
+
+.badge-sm {
+    font-size: 0.65em;
+    padding: 0.2em 0.5em;
+}
+
+/* Styles pour les cartes mobiles */
+@media (max-width: 767.98px) {
+    .container-fluid {
+        padding-left: 12px;
+        padding-right: 12px;
+    }
+    
+    .card-body {
+        padding: 1rem;
+    }
+    
+    /* Animation pour les cartes */
+    .livraison-card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .livraison-card:active {
+        transform: scale(0.98);
+    }
+    
+    /* Boutons adaptés tactile */
+    .btn {
+        min-height: 44px;
+        padding: 0.375rem 0.75rem;
+    }
+    
+    .btn-sm {
+        min-height: 36px;
+    }
+    
+    /* Cartes mobiles plus compactes */
+    .livraison-card {
+        margin-left: 0.25rem;
+        margin-right: 0.25rem;
+        word-break: break-word;
+    }
+    
+    .livraison-card .d-flex.gap-1,
+    .livraison-card .d-flex.gap-2 {
+        flex-wrap: wrap;
+        gap: 0.5rem;
+    }
+    
+    .livraison-card .d-flex.gap-1 button,
+    .livraison-card .d-flex.gap-2 button {
+        flex: 1 1 48%;
+        min-width: 48%;
+    }
+    
+    /* Espacement pour les doigts */
+    .d-flex.gap-1 > * {
+        margin-right: 0.25rem;
+    }
+    
+    .d-flex.gap-1 > *:last-child {
+        margin-right: 0;
+    }
+    
+    /* Ajustement des colonnes sur mobile */
+    .row.g-2 {
+        margin-left: -0.25rem;
+        margin-right: -0.25rem;
+    }
+    
+    .row.g-2 > [class*="col-"] {
+        padding-left: 0.25rem;
+        padding-right: 0.25rem;
+    }
+}
+
+/* Styles desktop */
+@media (min-width: 768px) {
+    .table-hover tbody tr:hover {
+        background-color: rgba(0,123,255,0.05);
+    }
+    
+    .modal-dialog {
+        max-width: 500px;
+    }
+    
+    th a {
+        color: inherit;
+        transition: color 0.2s;
+    }
+    
+    th a:hover {
+        color: var(--bs-primary);
+        text-decoration: underline !important;
+    }
+}
+
+/* Animation pour les statuts */
+@keyframes pulse {
+    0% { opacity: 1; }
+    50% { opacity: 0.7; }
+    100% { opacity: 1; }
+}
+
+.badge.bg-warning {
+    animation: pulse 2s infinite;
+}
+
+/* Indicateur de tri */
+th a.text-primary {
+    position: relative;
+}
+
+th a.text-primary:after {
+    content: '↓';
+    margin-left: 4px;
+    font-weight: bold;
+}
+
+/* Badge pour aujourd'hui/hier */
+.badge.bg-info, .badge.bg-secondary {
+    font-size: 0.7em;
+    padding: 0.15em 0.4em;
+}
+</style>
+{% endblock %}

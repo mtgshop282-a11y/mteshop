@@ -1,1 +1,2 @@
-# mteshop
+# Gestion_Boutique
+changeons l'entete de la facture en en elvant la ou il y a MTG on met MTE,mais aussi Galerie G.T.B Numero 48 en galerie G.H.P Numero 80 et enfin +243 976 515 383 / +243 844 076 837 en +243 979262503
