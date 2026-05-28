@@ -61,7 +61,7 @@ class Factures(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     nom_client = db.Column(db.String(100), nullable=False)
     montant_total = db.Column(db.Float, nullable=False)
-    date_facture = db.Column(db.DateTime, default=datetime.utcnow)
+    date_facture = db.Column(db.DateTime, default=datetime.now)
     paiement_credit = db.Column(db.Boolean, default=False)
     montant_cash = db.Column(db.Float, default=0)
     montant_credit = db.Column(db.Float, default=0)
