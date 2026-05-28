@@ -718,26 +718,34 @@ def details_facture_json(id):
         'nom_client': facture.nom_client,
         'montant_total': float(facture.montant_total),
         'date_facture': facture.date_facture.strftime('%d/%m/%Y %H:%M'),
+        'date_facture_iso': facture.date_facture.strftime('%Y-%m-%dT%H:%M:%S'),
         'paiement_credit': facture.paiement_credit,
         'montant_cash': float(facture.montant_cash),
         'montant_credit': float(facture.montant_credit),
         'type_livraison': facture.type_livraison,
-        'lieu_retrait': facture.lieu_retrait
+        'lieu_retrait': facture.lieu_retrait,
+        'est_annule': facture.est_annule
     }
     
     ventes_data = []
+    ventes_inverse_data = []
     for vente in ventes:
-        ventes_data.append({
-            'produit_id': vente.produit_id,  # AJOUTÉ
+        vente_data = {
+            'produit_id': vente.produit_id,
             'produit_nom': vente.produit.nom,
             'quantite': vente.quantite,
             'prix_unitaire': float(vente.montant_total / vente.quantite) if vente.quantite > 0 else 0,
             'montant_total': float(vente.montant_total)
-        })
+        }
+        if vente.quantite < 0 or vente.montant_total < 0:
+            ventes_inverse_data.append(vente_data)
+        else:
+            ventes_data.append(vente_data)
     
     return jsonify({
         'facture': facture_data,
-        'ventes': ventes_data
+        'ventes': ventes_data,
+        'ventes_inverse': ventes_inverse_data
     })
 
 @bp.route('/factures/modifier', methods=['POST'])
@@ -1068,6 +1076,12 @@ def annuler_facture():
             return jsonify({'success': False, 'message': 'ID facture manquant'}), 400
 
         facture = Factures.query.get_or_404(facture_id)
+        if facture.est_annule:
+            return jsonify({'success': False, 'message': 'Cette facture est déjà annulée.'}), 400
+
+        if datetime.now() - facture.date_facture > timedelta(hours=4):
+            return jsonify({'success': False, 'message': 'Impossible d\'annuler une facture après 4 heures.'}), 400
+
         ventes = Ventes.query.filter_by(facture_id=facture_id).all()
 
         # DÉBUT TRANSACTION
@@ -1267,6 +1281,9 @@ def factures():
         Factures.est_annule == False
     ).all()
     
+    # Factures annulées
+    factures_annulees = Factures.query.filter(Factures.est_annule == True).order_by(Factures.date_facture.desc()).all()
+    
     # Cette semaine
     start_of_week = today - timedelta(days=today.weekday())
     end_of_week = start_of_week + timedelta(days=6)
@@ -1302,6 +1319,7 @@ def factures():
     
     return render_template('factures.html',
                          factures=factures_list,
+                         factures_annulees=factures_annulees,
                          produits=produits,
                          search_term=search_term,
                          total_factures=total_factures,

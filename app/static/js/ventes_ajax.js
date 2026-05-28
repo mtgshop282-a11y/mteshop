@@ -828,6 +828,11 @@ function imprimerFacture() {
     }
     
     const printWindow = window.open('', '_blank', 'width=500,height=600');
+    if (!printWindow) {
+        alert('Impossible d’ouvrir la fenêtre d’impression. Désactivez le bloqueur de fenêtres surgissantes pour continuer.');
+        return;
+    }
+
     printWindow.document.write(`
         <!DOCTYPE html>
         <html>
@@ -849,6 +854,9 @@ function imprimerFacture() {
         </html>
     `);
     printWindow.document.close();
-    printWindow.print();
-    printWindow.close();
+    printWindow.onload = function() {
+        printWindow.focus();
+        printWindow.print();
+        printWindow.close();
+    };
 }
